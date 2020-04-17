@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -10,7 +11,8 @@ namespace TokenEngineKeyProvider
 {
     class SymmetricKeyProvider : KeyProvider
     {
-        private const string label = "keepasskey";
+        public const string DataObjectLabel = "keepasskey";
+
         private IPlugin plugin;
 
         public SymmetricKeyProvider(IPlugin plugin)
@@ -18,9 +20,11 @@ namespace TokenEngineKeyProvider
 
         public override string Name => "Token Engine Key Provider";
 
+        public byte[] ProtectedLastProvidedKey { get; private set; }
+
         public override byte[] GetKey(KeyProviderQueryContext ctx)
         {
-            return Task.Run(async () =>
+            var returnValue = Task.Run(async () =>
             {
                 try
                 {
@@ -32,7 +36,7 @@ namespace TokenEngineKeyProvider
                         if (!token.Capability.IsInitialized)
                             continue;
 
-                        var dataObject = (await token.FindObjectsAsync(label, isPrivate: true))
+                        var dataObject = (await token.FindObjectsAsync(DataObjectLabel, isPrivate: true))
                             .FirstOrDefault();
 
                         if (dataObject == null)
@@ -62,7 +66,7 @@ namespace TokenEngineKeyProvider
                         {
                             using (var symmetricKeyData = SymmetricKeyData.Generate())
                             {
-                                var dataObject = await token.CreateObjectAsync(label, symmetricKeyData.RawData.Length, isPrivate: true);
+                                var dataObject = await token.CreateObjectAsync(DataObjectLabel, symmetricKeyData.RawData.Length, isPrivate: true);
                                 await dataObject.SetDataAsync(symmetricKeyData.RawData);
 
                                 var result = new byte[symmetricKeyData.Key.Length];
@@ -87,6 +91,15 @@ namespace TokenEngineKeyProvider
 
                 return null;
             }).Result;
+
+            if (returnValue != null)
+            {
+                ProtectedLastProvidedKey = new byte[returnValue.Length];
+                Array.Copy(returnValue, ProtectedLastProvidedKey, returnValue.Length);
+                ProtectedMemory.Protect(ProtectedLastProvidedKey, MemoryProtectionScope.SameProcess);
+            }
+
+            return returnValue;
         }
     }
 }
