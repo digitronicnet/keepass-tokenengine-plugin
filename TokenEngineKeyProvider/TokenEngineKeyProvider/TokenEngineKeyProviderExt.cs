@@ -9,7 +9,7 @@ using TokenEngineForefront.HighApi;
 
 namespace TokenEngineKeyProvider
 {
-    public sealed class TokenEngineKeyProviderExt : Plugin
+    public sealed class TokenEngineKeyProviderExt : Plugin, IPlugin
     {
         static TokenEngineKeyProviderExt()
         {
@@ -22,7 +22,9 @@ namespace TokenEngineKeyProvider
         }
 
         private IPluginHost host;
-        private TokenEngine tokenEngine;
+        private SymmetricKeyProvider symKeyProvider;
+
+        public TokenEngine TokenEngine { get; private set; }
 
         public override bool Initialize(IPluginHost host)
         {
@@ -30,11 +32,10 @@ namespace TokenEngineKeyProvider
             {
                 this.host = host ?? throw new ArgumentNullException("Invalid initialization data.");
 
-                if (tokenEngine == null)
-                {
-                    var initResult = TokenEngine.CreateTokenEngineAsync().Result;
-                    tokenEngine = initResult.Instance;
-                }
+                var initResult = TokenEngine.CreateTokenEngineAsync().Result;
+                TokenEngine = initResult.Instance;
+
+                host.KeyProviderPool.Add(symKeyProvider = new SymmetricKeyProvider(this));
             }
             catch(Exception e)
             {
@@ -48,8 +49,12 @@ namespace TokenEngineKeyProvider
 
         public override void Terminate()
         {
-            tokenEngine?.Dispose();
-            tokenEngine = null;
+            host.KeyProviderPool.Remove(symKeyProvider);
+            symKeyProvider = null;
+
+            TokenEngine?.Dispose();
+            TokenEngine = null;
+
             host = null;
         }
     }
