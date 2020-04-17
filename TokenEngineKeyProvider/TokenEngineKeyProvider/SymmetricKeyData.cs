@@ -4,15 +4,16 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TokenEngineKeyProvider.Common;
 
 namespace TokenEngineKeyProvider
 {
-    class SymmetricKeyData
+    class SymmetricKeyData : Disposable
     {
         public const ushort CurrentVersion = 1;
         public const int KeyLength = 32;
 
-        private SymmetricKeyData Generate()
+        public static SymmetricKeyData Generate()
         {
             var rnd = new Random();
             var key = new byte[KeyLength];
@@ -28,7 +29,7 @@ namespace TokenEngineKeyProvider
             }
         }
 
-        private SymmetricKeyData Load(byte[] data)
+        public static SymmetricKeyData Load(byte[] data)
         {
             using(var ms = new MemoryStream(data, writable: false))
             using (var br = new BinaryReader(ms))
@@ -54,15 +55,17 @@ namespace TokenEngineKeyProvider
 
         public ushort Flags { get; private set; }
 
-        public IEnumerable<byte> Key { get; private set; }
+        public byte[] Key { get; private set; }
 
-        public IEnumerable<byte> RawData { get; private set; }
+        public byte[] RawData { get; private set; }
 
         private SymmetricKeyData(ushort version, ushort flags, byte[] key, byte[] rawData = null)
         {
             Version = version;
             Flags = flags;
-            Key = new List<byte>(key);
+
+            Key = new byte[key.Length];
+            Array.Copy(key, Key, key.Length);
 
             if (rawData == null)
             {
@@ -77,7 +80,18 @@ namespace TokenEngineKeyProvider
                 }
             }
             else
-                RawData = new List<byte>(rawData);
+            {
+                RawData = new byte[rawData.Length];
+                Array.Copy(rawData, RawData, rawData.Length);
+            }
+        }
+
+        protected override void DisposeManaged()
+        {
+            Array.Clear(Key, 0, Key.Length);
+            Array.Clear(RawData, 0, RawData.Length);
+
+            base.DisposeManaged();
         }
     }
 }
