@@ -20,71 +20,73 @@ namespace TokenEngineKeyProvider
 
         public override byte[] GetKey(KeyProviderQueryContext ctx)
         {
-            try
+            return Task.Run(async () =>
             {
-                var tokenList = plugin.TokenEngine.GetTokenListAsync().Result;
-
-                foreach (var token in tokenList)
+                try
                 {
-                    token.LoadAsync().Wait();
-                    if (!token.Capability.IsInitialized)
-                        continue;
+                    var tokenList = await plugin.TokenEngine.GetTokenListAsync();
 
-                    var dataObject = token.FindObjectsAsync(label, isPrivate: true)
-                        .Result
-                        .FirstOrDefault();
-
-                    if (dataObject == null)
-                        continue;
-
-                    var data = dataObject.GetDataAsync().Result;
-
-                    try
+                    foreach (var token in tokenList)
                     {
-                        using (var symmetricKeyData = SymmetricKeyData.Load(data))
+                        await token.LoadAsync();
+                        if (!token.Capability.IsInitialized)
+                            continue;
+
+                        var dataObject = (await token.FindObjectsAsync(label, isPrivate: true))
+                            .FirstOrDefault();
+
+                        if (dataObject == null)
+                            continue;
+
+                        var data = await dataObject.GetDataAsync();
+
+                        try
                         {
-                            var result = new byte[symmetricKeyData.Key.Length];
-                            Array.Copy(symmetricKeyData.Key, result, symmetricKeyData.Key.Length);
-                            return result;
+                            using (var symmetricKeyData = SymmetricKeyData.Load(data))
+                            {
+                                var result = new byte[symmetricKeyData.Key.Length];
+                                Array.Copy(symmetricKeyData.Key, result, symmetricKeyData.Key.Length);
+                                return result;
+                            }
+                        }
+                        catch
+                        {
+                            continue;
                         }
                     }
-                    catch
-                    {
-                        continue;
-                    }
-                }
 
-                if (ctx.CreatingNewKey)
-                {
-                    var token = tokenList.FirstOrDefault(x => x.Capability.IsInitialized && x.Capability.IsObjectAPISupported && !x.Capability.IsObjectAPIIsReadOnly);
-                    if (token != null)
+                    if (ctx.CreatingNewKey)
                     {
-                        using (var symmetricKeyData = SymmetricKeyData.Generate())
+                        var token = tokenList.FirstOrDefault(x => x.Capability.IsInitialized && x.Capability.IsObjectAPISupported && !x.Capability.IsObjectAPIIsReadOnly);
+                        if (token != null)
                         {
-                            var dataObject = token.CreateObjectAsync(label, symmetricKeyData.RawData.Length, isPrivate: true).Result;
-                            dataObject.SetDataAsync(symmetricKeyData.RawData).Wait();
+                            using (var symmetricKeyData = SymmetricKeyData.Generate())
+                            {
+                                var dataObject = await token.CreateObjectAsync(label, symmetricKeyData.RawData.Length, isPrivate: true);
+                                await dataObject.SetDataAsync(symmetricKeyData.RawData);
 
-                            var result = new byte[symmetricKeyData.Key.Length];
-                            Array.Copy(symmetricKeyData.Key, result, symmetricKeyData.Key.Length);
-                            return result;
+                                var result = new byte[symmetricKeyData.Key.Length];
+                                Array.Copy(symmetricKeyData.Key, result, symmetricKeyData.Key.Length);
+                                return result;
+                            }
                         }
                     }
+
+                    MessageBox.Show("No matching token was found. Please connect another token."
+                        , "Token Engine Key Provider"
+                        , MessageBoxButtons.OK
+                        , MessageBoxIcon.Information);
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show($"Failed to create/read key: {e.Message}"
+                        , "Token Engine Key Provider"
+                        , MessageBoxButtons.OK
+                        , MessageBoxIcon.Error);
                 }
 
-                MessageBox.Show("No matching token was found. Please connect another token."
-                    , "Token Engine Key Provider"
-                    , MessageBoxButtons.OK
-                    , MessageBoxIcon.Information);
-            }
-            catch(Exception e)
-            {
-                MessageBox.Show($"Failed to create/read key: {e.Message}"
-                    , "Token Engine Key Provider"
-                    , MessageBoxButtons.OK
-                    , MessageBoxIcon.Error);
-            }
-
-            return null;
+                return null;
+            }).Result;
         }
     }
 }
