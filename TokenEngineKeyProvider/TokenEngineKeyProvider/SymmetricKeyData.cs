@@ -59,7 +59,7 @@ namespace TokenEngineKeyProvider
 
         public byte[] RawData { get; private set; }
 
-        private SymmetricKeyData(ushort version, ushort flags, byte[] key, byte[] rawData = null)
+        public SymmetricKeyData(ushort version, ushort flags, byte[] key, byte[] rawData = null)
         {
             Version = version;
             Flags = flags;
@@ -85,6 +85,9 @@ namespace TokenEngineKeyProvider
                 Array.Copy(rawData, RawData, rawData.Length);
             }
         }
+
+        public SymmetricKeyData(byte[] key)
+            : this(CurrentVersion, 0, key) { }
 
         protected override void DisposeManaged()
         {

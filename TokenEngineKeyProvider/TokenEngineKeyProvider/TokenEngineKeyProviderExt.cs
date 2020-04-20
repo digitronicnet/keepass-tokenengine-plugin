@@ -108,14 +108,19 @@ namespace TokenEngineKeyProvider
                                 .FirstOrDefault();
 
                     if (dataObject != null)
-                        return "There is already a key on the token.";
+                        return "There is already a key on the token.";                    
 
-                    dataObject = await token.CreateObjectAsync(SymmetricKeyProvider.DataObjectLabel, symKeyProvider.ProtectedLastProvidedKey.Length, isPrivate: true);
+                    var key = new byte[symKeyProvider.ProtectedLastProvidedKey.Length];
 
                     try
                     {
-                        ProtectedMemory.Unprotect(symKeyProvider.ProtectedLastProvidedKey, MemoryProtectionScope.SameProcess);
-                        await dataObject.SetDataAsync(symKeyProvider.ProtectedLastProvidedKey);
+                        Array.Copy(symKeyProvider.ProtectedLastProvidedKey, key, symKeyProvider.ProtectedLastProvidedKey.Length);
+                        ProtectedMemory.Unprotect(key, MemoryProtectionScope.SameProcess);
+                        using (var keyData = new SymmetricKeyData(key))
+                        {
+                            dataObject = await token.CreateObjectAsync(SymmetricKeyProvider.DataObjectLabel, keyData.RawData.Length, isPrivate: true);
+                            await dataObject.SetDataAsync(keyData.RawData);
+                        }
                     }
                     catch
                     {
@@ -124,10 +129,12 @@ namespace TokenEngineKeyProvider
                             await dataObject.DeleteAsync();
                         }
                         catch { }
+
+                        throw;
                     }
                     finally
                     {
-                        ProtectedMemory.Protect(symKeyProvider.ProtectedLastProvidedKey, MemoryProtectionScope.SameProcess);
+                        Array.Clear(key, 0, key.Length);
                     }
 
                     return string.Empty;
@@ -135,14 +142,22 @@ namespace TokenEngineKeyProvider
 
                 if (!string.IsNullOrEmpty(errorMessage))
                     throw new Exception(errorMessage);
+
+                MessageBox.Show($"The key was successfully copied to another token."
+                    , title
+                    , MessageBoxButtons.OK
+                    , MessageBoxIcon.Information);
             }
             catch(Exception ex)
             {
-                MessageBox.Show($"An error occurred:{Environment.NewLine}{ex.Message}"
+                var exception = ex;
+                if (ex.InnerException != null)
+                    exception = ex.InnerException;
+                MessageBox.Show($"An error occurred:{Environment.NewLine}{exception.Message}"
                     , title
                     , MessageBoxButtons.OK
                     , MessageBoxIcon.Error);
-            }
+            }           
         }
 
         public override void Terminate()
