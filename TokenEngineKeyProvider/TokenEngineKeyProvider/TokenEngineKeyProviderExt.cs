@@ -27,6 +27,7 @@ namespace TokenEngineKeyProvider
         private IPluginHost host;
         private SymmetricKeyProvider symKeyProvider;
         private ToolStripMenuItem menuItemCopyKey;
+        private ToolStripMenuItem menuItemDeleteKey;
 
         public TokenEngine TokenEngine { get; private set; }
 
@@ -61,12 +62,89 @@ namespace TokenEngineKeyProvider
 
                 menuItemCopyKey = new ToolStripMenuItem("Copy Key");
                 menuItemCopyKey.Click += MenuItemCopyKey_Click;
+
+                menuItemDeleteKey = new ToolStripMenuItem("Clean up all tokens");
+                menuItemDeleteKey.Click += MenuItemDeleteKey_Click;
+
                 tokenEngineMenu.DropDownItems.Add(menuItemCopyKey);
+                tokenEngineMenu.DropDownItems.Add(menuItemDeleteKey);
 
                 return tokenEngineMenu;
             }
 
             return base.GetMenuItem(t);
+        }
+
+        private void MenuItemDeleteKey_Click(object sender, EventArgs e)
+        {
+            var title = "Clean up all tokens";
+
+            try
+            {
+                if (MessageBox.Show("Are you sure you want clean up all connected tokens?"
+                    , title
+                    , MessageBoxButtons.YesNo
+                    , MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
+
+
+                var tokenList = Task.Run(async () =>
+                {
+                    var result = await TokenEngine.GetTokenListAsync();
+                    foreach (var t in result)
+                    {
+                        await t.LoadAsync();
+                        if (!t.Capability.IsInitialized || !t.Capability.IsObjectAPISupported || t.Capability.IsObjectAPIIsReadOnly)
+                            continue;
+                    }
+                    return result.Where(t => t.Capability.IsInitialized || t.Capability.IsObjectAPISupported || !t.Capability.IsObjectAPIIsReadOnly).ToList();
+                }).Result;
+
+                if (tokenList.Count == 0)
+                {
+                    if (MessageBox.Show("No token was found. Please connect a token."
+                        , title
+                        , MessageBoxButtons.OK
+                        , MessageBoxIcon.Question) != DialogResult.Yes)
+                        return;
+                }
+
+                var errorMessage = Task.Run(async () =>
+                {
+                    foreach(var token in tokenList)
+                    {
+                        try
+                        {
+                            var objs = await token.FindObjectsAsync(isPrivate: true);
+                            await Task.WhenAll(objs.Select(async x => await x.DeleteAsync()));
+                        }
+                        catch(Exception ex)
+                        {
+                            return ex.Message;
+                        }
+                    }                  
+
+                    return string.Empty;
+                }).Result;
+
+                if (!string.IsNullOrEmpty(errorMessage))
+                    throw new Exception(errorMessage);
+
+                MessageBox.Show($"All connected tokens have been cleaned up."
+                    , title
+                    , MessageBoxButtons.OK
+                    , MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                var exception = ex;
+                if (ex.InnerException != null)
+                    exception = ex.InnerException;
+                MessageBox.Show($"An error occurred:{Environment.NewLine}{exception.Message}"
+                    , title
+                    , MessageBoxButtons.OK
+                    , MessageBoxIcon.Error);
+            }
         }
 
         private void MenuItemCopyKey_Click(object sender, EventArgs e)
@@ -163,6 +241,7 @@ namespace TokenEngineKeyProvider
         public override void Terminate()
         {
             menuItemCopyKey.Click -= MenuItemCopyKey_Click;
+            menuItemDeleteKey.Click -= MenuItemDeleteKey_Click;
 
             host.KeyProviderPool.Remove(symKeyProvider);
             symKeyProvider = null;
