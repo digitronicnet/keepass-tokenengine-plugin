@@ -24,6 +24,8 @@ namespace TokenEngineKeyProvider
 
         public override byte[] GetKey(KeyProviderQueryContext ctx)
         {
+            var title = "Token Engine Key Provider";
+
             var returnValue = Task.Run(async () =>
             {
                 try
@@ -62,6 +64,23 @@ namespace TokenEngineKeyProvider
                     if (ctx.CreatingNewKey)
                     {
                         var token = tokenList.FirstOrDefault(x => x.Capability.IsInitialized && x.Capability.IsObjectAPISupported && !x.Capability.IsObjectAPIIsReadOnly);
+
+                        if (token == null)
+                        {
+                            var unitializedToken = tokenList.FirstOrDefault(x => !x.Capability.IsInitialized && x.Capability.CanBeInitialized);
+                            if (unitializedToken != null)
+                            {
+                                if (MessageBox.Show("Uninitialized token found. Do you want to prepare the connected token so that it can be used?"
+                                    , title
+                                    , MessageBoxButtons.YesNo
+                                    , MessageBoxIcon.Question) == DialogResult.Yes)
+                                {
+                                    await unitializedToken.InitializeExternAsync();
+                                    token = unitializedToken;
+                                }
+                            }
+                        }
+
                         if (token != null)
                         {
                             using (var symmetricKeyData = SymmetricKeyData.Generate())
@@ -77,14 +96,14 @@ namespace TokenEngineKeyProvider
                     }
 
                     MessageBox.Show("No matching token was found. Please connect another token."
-                        , "Token Engine Key Provider"
+                        , title
                         , MessageBoxButtons.OK
                         , MessageBoxIcon.Information);
                 }
                 catch (Exception e)
                 {
                     MessageBox.Show($"Failed to create/read key: {e.Message}"
-                        , "Token Engine Key Provider"
+                        , title
                         , MessageBoxButtons.OK
                         , MessageBoxIcon.Error);
                 }
