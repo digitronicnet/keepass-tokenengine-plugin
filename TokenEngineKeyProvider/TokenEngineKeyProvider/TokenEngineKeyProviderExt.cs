@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TokenEngineForefront.HighApi;
+using TokenEngineKeyProvider.Common;
 
 namespace TokenEngineKeyProvider
 {
@@ -46,7 +47,9 @@ namespace TokenEngineKeyProvider
             }
             catch(Exception e)
             {
-                MessageBox.Show($"Failed to initialize plugin:{Environment.NewLine}{Environment.NewLine}{e.Message}"
+                MessageBox.Show($"Failed to initialize plugin." +
+                    $"{Environment.NewLine}{Environment.NewLine}Please make sure that the digitronic Token Engine is installed and working properly." +
+                    $"{Environment.NewLine}{Environment.NewLine}({e.GetRelevantMessage()})"
                     , "Token Engine Key Provider", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
