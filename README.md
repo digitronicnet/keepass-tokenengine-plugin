@@ -19,11 +19,11 @@ Features:
 2. Follow the instructions contains in the archive
 
 ## Screenshots
-Create a new database with **Token Engine Key Provider**.
+Create a new database with **Token Engine Key Provider**.  
 ![database_create](.github/media/database_create.png)
 
-Open a database with **Token Engine Key Provider**.
+Open a database with **Token Engine Key Provider**.  
 ![database_open](.github/media/database_open.png)
 
-Clone the token key.
+Clone the token key.  
 ![database_opened](.github/media/database_opened.png)
